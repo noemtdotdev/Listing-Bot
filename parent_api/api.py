@@ -19,18 +19,21 @@ import httpx
 
 load_dotenv()
 APP_API_KEY = os.getenv("API_KEY")
-INTERNAL_API_KEY = ""
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
 
-# Discord OAuth configuration
-DISCORD_CLIENT_ID = "1394403872809816125"
-DISCORD_CLIENT_SECRET = ""
-DISCORD_REDIRECT_URI = "https://v2.noemt.dev/auth/discord/callback"
+SERVER_HOST = os.getenv("SERVER_HOST", "127.0.0.1")
+BOT_SERVICE_HOST = os.getenv("BOT_SERVICE_HOST", SERVER_HOST)
+SHOP_FRONTEND_HOST = os.getenv("SHOP_FRONTEND_HOST", SERVER_HOST)
+SHOP_FRONTEND_PORT = os.getenv("SHOP_FRONTEND_PORT", "7878")
+
+DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "1394403872809816125")
+DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
+DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", "https://v2.noemt.dev/auth/discord/callback")
 DISCORD_AUTHORIZE_URL = "https://discord.com/api/oauth2/authorize"
 DISCORD_TOKEN_URL = "https://discord.com/api/oauth2/token"
 DISCORD_USER_URL = "https://discord.com/api/users/@me"
 
-# Session configuration
-SESSION_LIFETIME = timedelta(hours=24)
+SESSION_LIFETIME = timedelta(hours=int(os.getenv("SESSION_LIFETIME_HOURS", "24")))
 
 DISALLOWED_FILES = {"parent_api"}
 
@@ -342,7 +345,7 @@ async def make_bot_request(port: int, endpoint: str, timeout: int = 10, data: An
     Make an optimized request to a bot endpoint
     Returns: (success, response_data)
     """
-    url = f"http://localhost:{port}{endpoint}"
+    url = f"http://{BOT_SERVICE_HOST}:{port}{endpoint}"
     if "?" in url:
         url += f"&api_key={INTERNAL_API_KEY}"
     else:
@@ -2086,12 +2089,12 @@ async def flexible_static_endpoint(request: Request, full_path: str):
         if not bot_name:
             raise HTTPException(status_code=404, detail=f"Domain '{host}' is not configured for our service.")
     
-    target_url = f"http://localhost:7878/static/{full_path}"
+    target_url = f"http://{SHOP_FRONTEND_HOST}:{SHOP_FRONTEND_PORT}/static/{full_path}"
     
     try:
         url = httpx.URL(target_url, params=request.query_params)
         headers = dict(request.headers)
-        headers["host"] = "localhost:7878"
+        headers["host"] = f"{SHOP_FRONTEND_HOST}:{SHOP_FRONTEND_PORT}"
         
         async with httpx.AsyncClient() as client:
             req = client.build_request(
@@ -2137,7 +2140,7 @@ proxy_client = httpx.AsyncClient()
 @app.api_route("/static/{full_path:path}", include_in_schema=False)
 async def custom_domain_static_proxy(request: Request, full_path: str):
     """
-    Handles static asset requests for custom domains by proxying directly to localhost:7878
+    Handles static asset requests for custom domains by proxying directly to the shop frontend
     without the bot name prefix since static assets are served at the root level.
     """
     host = request.headers.get("host")
@@ -2155,7 +2158,7 @@ async def custom_domain_static_proxy(request: Request, full_path: str):
             status_code=404
         )
 
-    target_url = f"http://localhost:7878/static/{full_path}"
+    target_url = f"http://{SHOP_FRONTEND_HOST}:{SHOP_FRONTEND_PORT}/static/{full_path}"
     
     print(f"Static asset request: /static/{full_path}")
     print(f"Target URL: {target_url}")
@@ -2164,7 +2167,7 @@ async def custom_domain_static_proxy(request: Request, full_path: str):
         url = httpx.URL(target_url, params=request.query_params)
         headers = dict(request.headers)
         
-        headers["host"] = "localhost:7878"
+        headers["host"] = f"{SHOP_FRONTEND_HOST}:{SHOP_FRONTEND_PORT}"
         
         req = proxy_client.build_request(
             method=request.method,
@@ -2222,7 +2225,7 @@ async def custom_domain_assets_proxy(request: Request, full_path: str):
             status_code=404
         )
 
-    target_url = f"http://localhost:7878/assets/{full_path}"
+    target_url = f"http://{SHOP_FRONTEND_HOST}:{SHOP_FRONTEND_PORT}/assets/{full_path}"
     
     print(f"Assets request: /assets/{full_path}")
     print(f"Target URL: {target_url}")
@@ -2230,7 +2233,7 @@ async def custom_domain_assets_proxy(request: Request, full_path: str):
     try:
         url = httpx.URL(target_url, params=request.query_params)
         headers = dict(request.headers)
-        headers["host"] = "localhost:7878"
+        headers["host"] = f"{SHOP_FRONTEND_HOST}:{SHOP_FRONTEND_PORT}"
         
         req = proxy_client.build_request(
             method=request.method,
@@ -2274,7 +2277,7 @@ async def custom_domain_assets_proxy(request: Request, full_path: str):
 async def custom_domain_shop_proxy(request: Request, full_path: str):
     """
     Handles requests for custom domains by finding the associated bot
-    and proxying to the correct shop frontend on localhost:7878.
+    and proxying to the correct shop frontend service.
     """
     host = request.headers.get("host")
 
@@ -2293,7 +2296,7 @@ async def custom_domain_shop_proxy(request: Request, full_path: str):
             status_code=404
         )
 
-    target_url = f"http://localhost:7878/"
+    target_url = f"http://{SHOP_FRONTEND_HOST}:{SHOP_FRONTEND_PORT}/"
     
     print(f"Original request path: /shop/{full_path}")
     print(f"Target URL: {target_url} (React SPA - all routes serve index.html)")
@@ -2302,7 +2305,7 @@ async def custom_domain_shop_proxy(request: Request, full_path: str):
         url = httpx.URL(target_url, params=request.query_params)
         headers = dict(request.headers)
         
-        headers["host"] = "localhost:7878"
+        headers["host"] = f"{SHOP_FRONTEND_HOST}:{SHOP_FRONTEND_PORT}"
         
         if "accept" not in headers:
             headers["accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
@@ -2419,16 +2422,16 @@ async def custom_domain_catch_all(request: Request, full_path: str):
     # Determine the target URL based on the request path
     if full_path.startswith("static/"):
         # Static assets (CSS, JS, etc.)
-        target_url = f"http://localhost:7878/{full_path}"
+        target_url = f"http://{SHOP_FRONTEND_HOST}:{SHOP_FRONTEND_PORT}/{full_path}"
     elif full_path.startswith("assets/"):
         # Asset files (images, icons, etc.)
-        target_url = f"http://localhost:7878/{full_path}"
+        target_url = f"http://{SHOP_FRONTEND_HOST}:{SHOP_FRONTEND_PORT}/{full_path}"
     elif "." in full_path and full_path.split(".")[-1] in ["css", "js", "map", "ico", "png", "jpg", "jpeg", "gif", "webp", "svg", "woff", "woff2", "ttf", "eot", "json", "xml", "txt", "webmanifest"]:
         # File extensions - serve directly
-        target_url = f"http://localhost:7878/{full_path}"
+        target_url = f"http://{SHOP_FRONTEND_HOST}:{SHOP_FRONTEND_PORT}/{full_path}"
     else:
         # Everything else - serve React app
-        target_url = f"http://localhost:7878/"
+        target_url = f"http://{SHOP_FRONTEND_HOST}:{SHOP_FRONTEND_PORT}/"
     
     print(f"Catch-all request: /{full_path}")
     print(f"Target URL: {target_url}")
@@ -2436,7 +2439,7 @@ async def custom_domain_catch_all(request: Request, full_path: str):
     try:
         url = httpx.URL(target_url, params=request.query_params)
         headers = dict(request.headers)
-        headers["host"] = "localhost:7878"
+        headers["host"] = f"{SHOP_FRONTEND_HOST}:{SHOP_FRONTEND_PORT}"
         
         req = proxy_client.build_request(
             method=request.method,

@@ -3,6 +3,13 @@ from typing import Optional
 import json
 import os
 from api.auth_utils import API_KEY
+from dotenv import load_dotenv
+
+load_dotenv()
+
+PARENT_API_HOST = os.getenv("PARENT_API_HOST", "127.0.0.1")
+PARENT_API_PORT = os.getenv("PARENT_API_PORT", "7000")
+BOT_SERVICE_HOST = os.getenv("BOT_SERVICE_HOST", "127.0.0.1")
 
 ports = {
     "nom": 49089,
@@ -12,7 +19,7 @@ class APIProxyManager:
     def __init__(self, session: aiohttp.ClientSession):
         self.session = session
 
-        self.base_url = "http://localhost:7000"
+        self.base_url = f"http://{PARENT_API_HOST}:{PARENT_API_PORT}"
 
     async def __aenter__(self):
         return self
@@ -67,7 +74,7 @@ class BotCommunicator:
         cleaned_ports = [port for port in ports_to_request if port is not None]
 
         for port in cleaned_ports:
-            url = f"http://84.247.168.147:{port}/{endpoint}?api_key={API_KEY}"
+            url = f"http://{BOT_SERVICE_HOST}:{port}/{endpoint}?api_key={API_KEY}"
 
             if request_type == "GET":
                 async with self.session.get(url, **kwargs) as response:
