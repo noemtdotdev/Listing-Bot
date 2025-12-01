@@ -19,6 +19,9 @@ load_dotenv()
 
 import json
 
+PARENT_API_HOST = os.getenv("PARENT_API_HOST", "127.0.0.1")
+PARENT_API_PORT = os.getenv("PARENT_API_PORT", "7000")
+
 class Bot(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -213,7 +216,7 @@ class Bot(commands.Bot):
                 if full_command and self.session:
                     try:
                         async with self.session.post(
-                            "http://localhost:7000/live/command-execution",
+                            f"http://{PARENT_API_HOST}:{PARENT_API_PORT}/live/command-execution",
                             json={
                                 "command": full_command,
                                 "guild_id": str(interaction.guild_id) if interaction.guild_id else None,

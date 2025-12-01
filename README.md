@@ -150,14 +150,30 @@ pip install -r requirements.txt
 
 #### 2.3 Create the Environment File
 
-Create a file named `.env` in the `listing-bot/` directory:
+Copy the example environment file and edit it with your values:
 
 ```bash
-# Windows:
-echo TOKEN=your_discord_bot_token_here > .env
+# Copy the example file
+cp env.example listing-bot/.env
+```
 
-# macOS/Linux:
-echo "TOKEN=your_discord_bot_token_here" > .env
+Edit the `.env` file in the `listing-bot/` directory with your settings:
+
+```env
+# Discord bot token (required)
+TOKEN=your_discord_bot_token_here
+
+# Server configuration - use your server's IP address
+# For local development, use 127.0.0.1
+# For production, use your server's actual IP (e.g., 192.168.1.100)
+SERVER_HOST=127.0.0.1
+BOT_SERVICE_HOST=127.0.0.1
+PARENT_API_HOST=127.0.0.1
+PARENT_API_PORT=7000
+
+# If you have a Skyblock data API running
+SKYBLOCK_API_HOST=127.0.0.1
+SKYBLOCK_API_PORT=3002
 ```
 
 Replace `your_discord_bot_token_here` with your actual Discord bot token (see Step 3).
@@ -223,13 +239,33 @@ pip install fastapi uvicorn aiohttp httpx python-dotenv
 
 #### 4.3 Create Environment File
 
-Create a `.env` file in the `parent_api/` directory:
+Create a `.env` file in the `parent_api/` directory with the following configuration:
 
 ```env
+# API Authentication
 API_KEY=your_secret_api_key_here
+INTERNAL_API_KEY=your_internal_api_key_here
+
+# Server Configuration - use your server's IP address
+# For local development, use 127.0.0.1
+# For production, use your server's actual IP
+SERVER_HOST=127.0.0.1
+BOT_SERVICE_HOST=127.0.0.1
+SHOP_FRONTEND_HOST=127.0.0.1
+SHOP_FRONTEND_PORT=7878
+
+# Discord OAuth2 Configuration
+DISCORD_CLIENT_ID=your_discord_client_id
+DISCORD_CLIENT_SECRET=your_discord_client_secret
+DISCORD_REDIRECT_URI=https://yourdomain.com/auth/discord/callback
+
+# Session Configuration
+SESSION_LIFETIME_HOURS=24
 ```
 
 Generate a secure API key (you can use any random string, e.g., from https://randomkeygen.com/).
+
+**Important:** Replace `yourdomain.com` with your actual domain or use `http://127.0.0.1:7000` for local development.
 
 #### 4.4 Create Ports Configuration
 
@@ -247,16 +283,6 @@ If you want to use custom domains, create `custom_domains.json`:
 
 ```json
 []
-```
-
-#### 4.6 Update OAuth Configuration
-
-Edit `api.py` and update these values with your Discord application credentials:
-
-```python
-DISCORD_CLIENT_ID = "your_client_id_here"
-DISCORD_CLIENT_SECRET = "your_client_secret_here"
-DISCORD_REDIRECT_URI = "http://localhost:7000/auth/discord/callback"
 ```
 
 ### Step 5: Set Up the Web Dashboards
@@ -546,6 +572,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
+<<<<<<< Updated upstream
 Made with care by [noemt.dev](https://noemt.dev)
 
 todo: api key information
@@ -569,3 +596,6 @@ then, enter the port (and ip if you want to test locally on the same codebase) i
 the api key you use for authentication there needs to be entered in listing-bot\bot\util\fetch.py
 
 replace ALL localhost with the actual servers ip that you are running on to make 100% sure that it runs (it should with localhost but you can never be sure enough)
+=======
+Made by [noemt.dev](https://noemt.dev), README.md by [ash](https://github.com/auradoescoding)
+>>>>>>> Stashed changes
