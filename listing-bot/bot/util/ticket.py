@@ -1,14 +1,19 @@
 from bot.bot import Bot
 import discord
 import aiohttp
+import os
 from bot.util.listing_objects.ticket import OpenedTicket
 from bot.util.fetch import fetch_mojang_api
 from bot.util.calcs import calculate_coin_price
 from bot.util.transform import unabbreviate
 from bot.util.get_default_overwrites import get_default_overwrites, get_role_config_name
 import aiohttp
+from dotenv import load_dotenv
 
 from bot.util.constants import port
+
+load_dotenv()
+BOT_SERVICE_HOST = os.getenv("BOT_SERVICE_HOST", "127.0.0.1")
 
 async def hylist_lookup(user_id: int) -> discord.Embed:
     # goodbye the hylist lookup (I might bring back some other feature referencing this function later)
@@ -33,7 +38,7 @@ class LowballView(discord.ui.View):
                 return True
             
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"http://localhost:{port}/seller?user_id={interaction.user.id}&api_key=API_KEY") as resp:
+                async with session.get(f"http://{BOT_SERVICE_HOST}:{port}/seller?user_id={interaction.user.id}&api_key=API_KEY") as resp:
                     data: dict = await resp.json()
                     if data.get("response"):
                         return True

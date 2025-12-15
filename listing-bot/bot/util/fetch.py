@@ -4,6 +4,15 @@ from discord import Webhook
 from .constants import api_key
 import aiohttp
 import requests
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+PARENT_API_HOST = os.getenv("PARENT_API_HOST", "127.0.0.1")
+PARENT_API_PORT = os.getenv("PARENT_API_PORT", "7000")
+SKYBLOCK_API_HOST = os.getenv("SKYBLOCK_API_HOST", "127.0.0.1")
+SKYBLOCK_API_PORT = os.getenv("SKYBLOCK_API_PORT", "3002")
 
 def handle_selection(selection):
     """
@@ -71,11 +80,11 @@ async def fetch_profile_data(session, uuid, bot, profile=None, allow_error_handl
         uuid = mojang_data[0]["id"]
 
     try:
-        await session.post("http://localhost:7000/live/data-fetch", json={"uuid": uuid})
+        await session.post(f"http://{PARENT_API_HOST}:{PARENT_API_PORT}/live/data-fetch", json={"uuid": uuid})
     except Exception as e:
         pass
 
-    url = f"http://localhost:3002/v1/{word}/{uuid}/{handle_selection(profile) or ''}?key=API_KEY"
+    url = f"http://{SKYBLOCK_API_HOST}:{SKYBLOCK_API_PORT}/v1/{word}/{uuid}/{handle_selection(profile) or ''}?key=API_KEY"
     async with session.get(url) as resp:
         profile_data = await resp.json()
         data = profile_data.get("data", {})
@@ -96,7 +105,7 @@ async def fetch_raw_hypixel_stats(self, uuid):
         else:
             # Log the data fetch to the new endpoint with just the UUID
             try:
-                await session.post("http://localhost:7000/live/data-fetch", json={"uuid": uuid})
+                await session.post(f"http://{PARENT_API_HOST}:{PARENT_API_PORT}/live/data-fetch", json={"uuid": uuid})
             except Exception as e:
                 pass
                 

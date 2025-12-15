@@ -3,8 +3,13 @@ import os
 import discord
 import aiohttp
 from datetime import datetime
+from dotenv import load_dotenv
 
 from discord.ext import commands
+
+load_dotenv()
+
+BOT_SERVICE_HOST = os.getenv("BOT_SERVICE_HOST", "127.0.0.1")
 
 api_key = ""
 color_codes = ["§0", "§1", "§2", "§3", "§4", "§5", "§6", "§7", "§8", "§9", "§a", "§b", "§c", "§d", "§e", "§f", "§undefined"]
@@ -288,7 +293,7 @@ def is_authorized_to_use_bot(strict=False):
             return ctx.author.id in ctx.bot.owner_ids
         
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"http://localhost:{port}/seller?user_id={ctx.author.id}&api_key=ae75e9b7-9f08-4da5-b99b-18b90c4ac7bc") as resp:
+            async with session.get(f"http://{BOT_SERVICE_HOST}:{port}/seller?user_id={ctx.author.id}&api_key=ae75e9b7-9f08-4da5-b99b-18b90c4ac7bc") as resp:
                 data: dict = await resp.json()
                 if data.get("response"):
                     return True
@@ -301,7 +306,7 @@ def is_authorized_to_use_bot(strict=False):
 async def is_seller(user_id: int):
     async def predicate(ctx: discord.ApplicationContext):
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"http://localhost:{port}/seller?user_id={user_id}&api_key=ae75e9b7-9f08-4da5-b99b-18b90c4ac7bc") as resp:
+            async with session.get(f"http://{BOT_SERVICE_HOST}:{port}/seller?user_id={user_id}&api_key=ae75e9b7-9f08-4da5-b99b-18b90c4ac7bc") as resp:
                 data: dict = await resp.json()
                 if data.get("response"):
                     return True
@@ -312,7 +317,7 @@ async def is_seller(user_id: int):
 def is_customer():
     async def predicate(ctx: discord.ApplicationContext):
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"http://localhost:{port}/customer?user_id={ctx.author.id}&api_key=ae75e9b7-9f08-4da5-b99b-18b90c4ac7bc") as resp:
+            async with session.get(f"http://{BOT_SERVICE_HOST}:{port}/customer?user_id={ctx.author.id}&api_key=ae75e9b7-9f08-4da5-b99b-18b90c4ac7bc") as resp:
                 data: dict = await resp.json()
                 if data.get("response"):
                     return True
