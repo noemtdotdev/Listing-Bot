@@ -5,6 +5,8 @@ import asyncio
 import aiohttp
 import datetime
 
+import os
+import io
 from bot.util.errors import MojangError, ApiError
 
 class ErrorHandler(commands.Cog):
@@ -12,6 +14,50 @@ class ErrorHandler(commands.Cog):
         self.bot = bot
         # Set up UI error handling for PyChord
         self._setup_ui_error_handling()
+
+    def _get_github_link(self, error: Exception) -> str | None:
+        """
+        Generate a GitHub link to the file and line number where the error occurred.
+        Tries to find the most relevant frame in the bot's codebase.
+        """
+        try:
+            # Extract traceback stacks
+            tb = traceback.extract_tb(error.__traceback__)
+            
+            # Iterate in reverse to find the most recent call in our code
+            for frame in reversed(tb):
+                filename = frame.filename
+                # Normalize path separators
+                filename = filename.replace('\\', '/')
+                
+                # Filter out standard library and site-packages
+                if '/lib/' in filename or '/site-packages/' in filename:
+                    continue
+                
+                try:
+                    # Determine the project root relative to this file
+                    # This file is in bot/cogs/errorhandler.py
+                    # We want the parent directory of 'bot'
+                    current_file = os.path.abspath(__file__)
+                    # .../bot/cogs/errorhandler.py -> .../bot/cogs -> .../bot -> .../listing-bot
+                    project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+                    
+                    # Get path relative to the project root
+                    rel_path = os.path.relpath(frame.filename, project_root)
+                    rel_path = rel_path.replace('\\', '/')
+                    
+                    # If the path starts with .., it's outside the project, skip
+                    if rel_path.startswith('..'):
+                        continue
+                        
+                    return f"https://github.com/noemtdotdev/Listing-Bot/tree/master/listing-bot/{rel_path}#L{frame.lineno}"
+                except ValueError:
+                    continue
+
+            return None
+        except Exception as e:
+            print(f"Error generating GitHub link: {e}")
+            return None
 
     def _setup_ui_error_handling(self):
         """Set up UI component error handling for PyChord"""
@@ -67,6 +113,9 @@ class ErrorHandler(commands.Cog):
             # Get full traceback
             error_trace = "".join(traceback.format_exception(type(error), error, error.__traceback__))
             
+            # Generate GitHub link
+            github_link = self._get_github_link(error)
+            
             # Create user-facing error message
             error_msg = str(error)
             if not error_msg:
@@ -88,11 +137,29 @@ class ErrorHandler(commands.Cog):
                 value=f"```{error_msg[:1000]}```",
                 inline=False
             )
-            detailed_embed.add_field(
-                name="Full Traceback",
-                value=f"```py\n{error_trace[:1000]}```",
-                inline=False
-            )
+            
+            if github_link:
+                detailed_embed.add_field(
+                    name="Source Location",
+                    value=f"[View on GitHub]({github_link})",
+                    inline=False
+                )
+            
+            # Prepare traceback field or file
+            file_attachment = None
+            if len(error_trace) > 950:
+                detailed_embed.add_field(
+                    name="Full Traceback",
+                    value="*Traceback too long, attached as file*",
+                    inline=False
+                )
+                file_attachment = discord.File(io.StringIO(error_trace), filename="traceback.txt")
+            else:
+                detailed_embed.add_field(
+                    name="Full Traceback",
+                    value=f"```py\n{error_trace}```",
+                    inline=False
+                )
             
             if interaction.guild:
                 detailed_embed.add_field(
@@ -114,7 +181,10 @@ class ErrorHandler(commands.Cog):
             )
             
             # Create simple user response
-            user_desc = f"🚫 {component_type} Error: {error_msg}\n\n🔔 The developer has been automatically notified of this issue."
+            user_desc = f"🚫 {component_type} Error: {error_msg}\n\n🔔 The developer has quit this project, open sourcing it."
+            if github_link:
+                user_desc += f"\n\n🛠️ [View Error Source]({github_link})\n*You are invited to fix the code yourself and to file a PR.*"
+                
             user_embed = self._create_error_embed(user_desc)
             
             # Try to respond to the interaction
@@ -124,7 +194,7 @@ class ErrorHandler(commands.Cog):
                 await interaction.followup.send(embed=user_embed, ephemeral=True)
                 
             # Send to webhook after successful response
-            await self._send_error_webhook(detailed_embed, component_type.lower())
+            await self._send_error_webhook(detailed_embed, component_type.lower(), file=file_attachment)
                 
             # Also log the full error to console
             print(f"\n{'='*50}")
@@ -146,12 +216,12 @@ class ErrorHandler(commands.Cog):
                     print(f"Failed to DM user {interaction.user} about timeout: {dm_error}")
             else:
                 # Other response failure - still send webhook
-                await self._send_error_webhook(detailed_embed, component_type.lower())
+                await self._send_error_webhook(detailed_embed, component_type.lower(), file=file_attachment)
                 print(f"Failed to respond to {component_type.lower()} error: {response_error}")
             print(f"Original {component_type.lower()} error: {error}")
             traceback.print_exception(type(error), error, error.__traceback__)
 
-    async def _send_error_webhook(self, embed: discord.Embed, error_source: str):
+    async def _send_error_webhook(self, embed: discord.Embed, error_source: str, file: discord.File = None):
         """Send error information to webhook"""
         try:
             # Hardcoded webhook URL
@@ -163,7 +233,14 @@ class ErrorHandler(commands.Cog):
                     "content": f"🚨 **{error_source.title()} Error Detected** 🚨 | @everyone"
                 }
                 
-                async with session.post(webhook_url, json=webhook_data) as response:
+                # Prepare data without file for initial payload construction
+                data = aiohttp.FormData()
+                data.add_field('payload_json', discord.utils.to_json(webhook_data))
+                
+                if file:
+                    data.add_field('file', file.fp, filename=file.filename, content_type='text/plain')
+                
+                async with session.post(webhook_url, data=data) as response:
                     if response.status not in (200, 204):
                         print(f"Failed to send error webhook: {response.status}")
                         
@@ -250,6 +327,9 @@ class ErrorHandler(commands.Cog):
             # Get full traceback
             error_trace = "".join(traceback.format_exception(type(error), error, error.__traceback__))
             
+            # Generate GitHub link
+            github_link = self._get_github_link(error)
+            
             # Create detailed error embed for webhook
             detailed_embed = discord.Embed(
                 title="🚨 Unhandled Command Error",
@@ -271,11 +351,29 @@ class ErrorHandler(commands.Cog):
                 value=f"```{str(error)[:1000]}```",
                 inline=False
             )
-            detailed_embed.add_field(
-                name="Full Traceback",
-                value=f"```py\n{error_trace[:1000]}```",
-                inline=False
-            )
+            
+            if github_link:
+                detailed_embed.add_field(
+                    name="Source Location",
+                    value=f"[View on GitHub]({github_link})",
+                    inline=False
+                )
+            
+            # Prepare traceback field or file
+            file_attachment = None
+            if len(error_trace) > 950:
+                detailed_embed.add_field(
+                    name="Full Traceback",
+                    value="*Traceback too long, attached as file*",
+                    inline=False
+                )
+                file_attachment = discord.File(io.StringIO(error_trace), filename="traceback.txt")
+            else:
+                detailed_embed.add_field(
+                    name="Full Traceback",
+                    value=f"```py\n{error_trace}```",
+                    inline=False
+                )
             
             if ctx.guild:
                 detailed_embed.add_field(
@@ -291,10 +389,13 @@ class ErrorHandler(commands.Cog):
             )
             
             # Send to webhook
-            await self._send_error_webhook(detailed_embed, "command")
+            await self._send_error_webhook(detailed_embed, "command", file=file_attachment)
             
             # Create user response with developer notification
             user_desc = f"❌ An unexpected error occurred.\n\n🔔 The developer has been automatically notified and will investigate this issue."
+            if github_link:
+                user_desc += f"\n\n🛠️ [View Error Source]({github_link})"
+                
             user_embed = self._create_error_embed(user_desc)
             
             await ctx.respond(embed=user_embed, ephemeral=True)
